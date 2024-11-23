@@ -1,69 +1,33 @@
 from sqlalchemy.orm import Session
-from fastapi import HTTPException, status, Response, Depends
-from ..models import order_details as model
-from sqlalchemy.exc import SQLAlchemyError
+from api.models.order_details import OrderDetail
+from api.schemas.order_details import OrderDetailCreate
+from api.models.orders import Order
+from api.models.menu_items import MenuItem
 
+def create_order_detail(db: Session, order_detail: OrderDetailCreate, order_id: int) -> OrderDetail:
+    db_order_detail = OrderDetail(**order_detail.dict(), order_id=order_id)
+    db.add(db_order_detail)
+    db.commit()
+    db.refresh(db_order_detail)
+    return db_order_detail
 
-def create(db: Session, request):
-    new_item = model.OrderDetail(
-        order_id=request.order_id,
-        sandwich_id=request.sandwich_id,
-        amount=request.amount
-    )
+def get_order_details(db: Session, order_id: int):
+    return db.query(OrderDetail).filter(OrderDetail.order_id == order_id).all()
 
-    try:
-        db.add(new_item)
+def update_order_detail(db: Session, order_detail_id: int, order_detail: OrderDetailCreate) -> OrderDetail:
+    db_order_detail = db.query(OrderDetail).filter(OrderDetail.order_detail_id == order_detail_id).first()
+    if db_order_detail:
+        for key, value in order_detail.dict(exclude_unset=True).items():
+            setattr(db_order_detail, key, value)
         db.commit()
-        db.refresh(new_item)
-    except SQLAlchemyError as e:
-        error = str(e.__dict__['orig'])
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
+        db.refresh(db_order_detail)
+        return db_order_detail
+    return None
 
-    return new_item
-
-
-def read_all(db: Session):
-    try:
-        result = db.query(model.OrderDetail).all()
-    except SQLAlchemyError as e:
-        error = str(e.__dict__['orig'])
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
-    return result
-
-
-def read_one(db: Session, item_id):
-    try:
-        item = db.query(model.OrderDetail).filter(model.OrderDetail.id == item_id).first()
-        if not item:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Id not found!")
-    except SQLAlchemyError as e:
-        error = str(e.__dict__['orig'])
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
-    return item
-
-
-def update(db: Session, item_id, request):
-    try:
-        item = db.query(model.OrderDetail).filter(model.OrderDetail.id == item_id)
-        if not item.first():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Id not found!")
-        update_data = request.dict(exclude_unset=True)
-        item.update(update_data, synchronize_session=False)
+def delete_order_detail(db: Session, order_detail_id: int) -> bool:
+    db_order_detail = db.query(OrderDetail).filter(OrderDetail.order_detail_id == order_detail_id).first()
+    if db_order_detail:
+        db.delete(db_order_detail)
         db.commit()
-    except SQLAlchemyError as e:
-        error = str(e.__dict__['orig'])
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
-    return item.first()
-
-
-def delete(db: Session, item_id):
-    try:
-        item = db.query(model.OrderDetail).filter(model.OrderDetail.id == item_id)
-        if not item.first():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Id not found!")
-        item.delete(synchronize_session=False)
-        db.commit()
-    except SQLAlchemyError as e:
-        error = str(e.__dict__['orig'])
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+        return True
+    return False

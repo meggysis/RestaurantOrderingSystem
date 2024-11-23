@@ -1,35 +1,32 @@
-from fastapi import APIRouter, Depends, FastAPI, status, Response
+from fastapi import APIRouter, Depends, HTTPException
+from api.controllers.orders import create_order, get_order, update_order, delete_order
+from api.schemas.orders import OrderCreate, OrderUpdate, OrderResponse
+from api.dependencies.database import get_db
 from sqlalchemy.orm import Session
-from ..controllers import orders as controller
-from ..schemas import orders as schema
-from ..dependencies.database import engine, get_db
 
-router = APIRouter(
-    tags=['Orders'],
-    prefix="/orders"
-)
+router = APIRouter()
 
+@router.post("/", response_model=OrderResponse)
+def create_new_order(order: OrderCreate, db: Session = Depends(get_db)):
+    return create_order(db=db, order=order)
 
-@router.post("/", response_model=schema.Order)
-def create(request: schema.OrderCreate, db: Session = Depends(get_db)):
-    return controller.create(db=db, request=request)
+@router.get("/{order_id}", response_model=OrderResponse)
+def get_order_by_id(order_id: int, db: Session = Depends(get_db)):
+    order = get_order(db=db, order_id=order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return order
 
+@router.put("/{order_id}", response_model=OrderResponse)
+def update_existing_order(order_id: int, order: OrderUpdate, db: Session = Depends(get_db)):
+    updated_order = update_order(db=db, order_id=order_id, order=order)
+    if not updated_order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return updated_order
 
-@router.get("/", response_model=list[schema.Order])
-def read_all(db: Session = Depends(get_db)):
-    return controller.read_all(db)
-
-
-@router.get("/{item_id}", response_model=schema.Order)
-def read_one(item_id: int, db: Session = Depends(get_db)):
-    return controller.read_one(db, item_id=item_id)
-
-
-@router.put("/{item_id}", response_model=schema.Order)
-def update(item_id: int, request: schema.OrderUpdate, db: Session = Depends(get_db)):
-    return controller.update(db=db, request=request, item_id=item_id)
-
-
-@router.delete("/{item_id}")
-def delete(item_id: int, db: Session = Depends(get_db)):
-    return controller.delete(db=db, item_id=item_id)
+@router.delete("/{order_id}")
+def delete_existing_order(order_id: int, db: Session = Depends(get_db)):
+    success = delete_order(db=db, order_id=order_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return {"message": "Order deleted successfully"}

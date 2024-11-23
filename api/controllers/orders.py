@@ -1,68 +1,31 @@
 from sqlalchemy.orm import Session
-from fastapi import HTTPException, status, Response, Depends
-from ..models import orders as model
-from sqlalchemy.exc import SQLAlchemyError
+from api.models.orders import Order
+from api.schemas.orders import OrderCreate, OrderUpdate, OrderResponse
 
+def create_order(db: Session, order: OrderCreate) -> OrderResponse:
+    db_order = Order(**order.dict())
+    db.add(db_order)
+    db.commit()
+    db.refresh(db_order)
+    return db_order
 
-def create(db: Session, request):
-    new_item = model.Order(
-        customer_name=request.customer_name,
-        description=request.description
-    )
+def get_order(db: Session, order_id: int) -> OrderResponse:
+    return db.query(Order).filter(Order.id == order_id).first()
 
-    try:
-        db.add(new_item)
+def update_order(db: Session, order_id: int, order: OrderUpdate) -> OrderResponse:
+    db_order = db.query(Order).filter(Order.id == order_id).first()
+    if db_order:
+        for key, value in order.dict(exclude_unset=True).items():
+            setattr(db_order, key, value)
         db.commit()
-        db.refresh(new_item)
-    except SQLAlchemyError as e:
-        error = str(e.__dict__['orig'])
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
+        db.refresh(db_order)
+        return db_order
+    return None
 
-    return new_item
-
-
-def read_all(db: Session):
-    try:
-        result = db.query(model.Order).all()
-    except SQLAlchemyError as e:
-        error = str(e.__dict__['orig'])
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
-    return result
-
-
-def read_one(db: Session, item_id):
-    try:
-        item = db.query(model.Order).filter(model.Order.id == item_id).first()
-        if not item:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Id not found!")
-    except SQLAlchemyError as e:
-        error = str(e.__dict__['orig'])
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
-    return item
-
-
-def update(db: Session, item_id, request):
-    try:
-        item = db.query(model.Order).filter(model.Order.id == item_id)
-        if not item.first():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Id not found!")
-        update_data = request.dict(exclude_unset=True)
-        item.update(update_data, synchronize_session=False)
+def delete_order(db: Session, order_id: int) -> bool:
+    db_order = db.query(Order).filter(Order.id == order_id).first()
+    if db_order:
+        db.delete(db_order)
         db.commit()
-    except SQLAlchemyError as e:
-        error = str(e.__dict__['orig'])
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
-    return item.first()
-
-
-def delete(db: Session, item_id):
-    try:
-        item = db.query(model.Order).filter(model.Order.id == item_id)
-        if not item.first():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Id not found!")
-        item.delete(synchronize_session=False)
-        db.commit()
-    except SQLAlchemyError as e:
-        error = str(e.__dict__['orig'])
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+        return True
+    return False

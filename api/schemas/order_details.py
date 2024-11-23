@@ -1,27 +1,16 @@
-from datetime import datetime
-from typing import Optional
 from pydantic import BaseModel
-from .sandwiches import Sandwich
-
+from typing import Optional
 
 class OrderDetailBase(BaseModel):
-    amount: int
-
+    menu_item_id: int
+    quantity: int
+    special_instructions: Optional[str] = None
 
 class OrderDetailCreate(OrderDetailBase):
-    order_id: int
-    sandwich_id: int
+    pass  # Use this model when creating order details
 
-class OrderDetailUpdate(BaseModel):
-    order_id: Optional[int] = None
-    sandwich_id: Optional[int] = None
-    amount: Optional[int] = None
+class OrderDetailResponse(OrderDetailBase):
+    order_detail_id: int  # This will be returned after an order detail is created
 
-
-class OrderDetail(OrderDetailBase):
-    id: int
-    order_id: int
-    sandwich: Sandwich = None
-
-    class ConfigDict:
-        from_attributes = True
+    class Config:
+        orm_mode = True  # This makes sure SQLAlchemy models can be automatically converted to Pydantic models
